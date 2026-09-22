@@ -157,6 +157,7 @@ select:focus, input:focus {
 
 .explanation {
     padding: 18px;
+    margin-top: 16px;
 }
 
 .explanation > p {
@@ -296,6 +297,23 @@ tr.next {
 .target span {
     color: var(--muted);
     font-size: 11px;
+}
+
+.technical-details {
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+}
+
+.technical-details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 700;
+    user-select: none;
+}
+
+.technical-details summary:hover {
+    color: var(--text);
 }
 
 footer {
