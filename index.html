@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Attack speed breakpoint calculator for 10-tick combat">
+  <title>Attack Speed Breakpoints</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="page">
+  <header class="hero">
+    <div>
+      <div class="eyebrow">10-TICK COMBAT ENGINE</div>
+      <h1>Attack Speed Breakpoints</h1>
+      <p>Exact breakpoint calculations using the game's weapon/skin timing data.</p>
+    </div>
+    <div class="badge">FD6 / 0.1s ticks</div>
+  </header>
+
+  <section class="panel controls">
+    <label>
+      <span>Skin set</span>
+      <select id="skin" aria-label="Skin set"></select>
+    </label>
+    <label>
+      <span>Weapon</span>
+      <select id="weapon" aria-label="Weapon">
+        <option value="melee">Melee</option>
+        <option value="ranged">Ranged</option>
+      </select>
+    </label>
+    <label>
+      <span>Attack Speed</span>
+      <input id="attackSpeed" type="number" min="0" max="480" step="0.001" value="151.000">
+      <small>Bonus %, e.g. 151.000%</small>
+    </label>
+    <label>
+      <span>Double Chance</span>
+      <input id="doubleChance" type="number" min="0" max="100" step="0.001" value="51.200">
+      <small>Used only for effective time / hit</small>
+    </label>
+  </section>
+
+  <section class="summary">
+    <article class="card">
+      <span>Windup</span>
+      <strong id="windup">—</strong>
+      <small id="skinWeapon">—</small>
+    </article>
+    <article class="card">
+      <span>Normal cycle</span>
+      <strong id="normalCycle">—</strong>
+      <small>first hit → next normal hit</small>
+    </article>
+    <article class="card">
+      <span>1st → 2nd hit</span>
+      <strong id="hitGap">—</strong>
+      <small>Double Attack only</small>
+    </article>
+    <article class="card accent">
+      <span>Double cycle</span>
+      <strong id="doubleCycle">—</strong>
+      <small>first hit → next cycle</small>
+    </article>
+  </section>
+
+  <section class="panel explanation">
+    <div class="eyebrow">CURRENT MODEL</div>
+    <h2>How the Double Attack is timed</h2>
+    <p>
+      The first hit uses the selected skin's configured windup. A Double Attack then resets the
+      attack timer to 75% of that windup. The timer climbs from that reset to the 1.5s
+      AttackDuration, followed by one idle tick.
+    </p>
+
+    <div class="formula-grid">
+      <div>
+        <b>Speed multiplier</b>
+        <code>s = 1 + AS / 100</code>
+      </div>
+      <div>
+        <b>FD6 increment</b>
+        <code>inc = floor(dtRaw × round(s × 1e6) / 2³²)</code>
+      </div>
+      <div>
+        <b>First-hit ticks</b>
+        <code>ceil(windup / inc)</code>
+      </div>
+      <div>
+        <b>Recovery ticks</b>
+        <code>ceil((1.5 − 0.75 × windup) / inc)</code>
+      </div>
+      <div>
+        <b>Double cycle</b>
+        <code>firstHit + recovery + 1 idle tick</code>
+      </div>
+      <div>
+        <b>Effective time / hit</b>
+        <code>(normal + DC × gap) / (1 + DC)</code>
+      </div>
+    </div>
+
+    <p class="note">
+      The website uses the game's fixed-point increment for breakpoint calculations rather than
+      the simplified 0.1 × speed approximation. AS values are displayed to three decimals.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">
+      <div>
+        <div class="eyebrow">CURRENT SPEED</div>
+        <h2>Timing breakdown</h2>
+      </div>
+    </div>
+    <div class="breakdown">
+      <div><span>Speed multiplier</span><b id="speedMultiplier">—</b></div>
+      <div><span>Timer increment</span><b id="increment">—</b></div>
+      <div><span>First-hit ticks</span><b id="firstTicks">—</b></div>
+      <div><span>Recovery ticks</span><b id="recoveryTicks">—</b></div>
+      <div><span>Idle ticks</span><b id="idleTicks">—</b></div>
+      <div><span>Effective time / hit</span><b id="effectiveTime">—</b></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">
+      <div>
+        <div class="eyebrow">NORMAL ATTACK</div>
+        <h2>Normal attack breakpoints</h2>
+      </div>
+      <span class="tag">weapon-independent</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Minimum AS</th><th>Cycle</th><th>Ticks</th><th>Status</th></tr>
+        </thead>
+        <tbody id="normalRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">
+      <div>
+        <div class="eyebrow">SKIN-SPECIFIC</div>
+        <h2 id="doubleHeading">Double Attack</h2>
+      </div>
+      <span class="tag" id="windupTag">—</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Minimum AS</th>
+            <th>Full double cycle</th>
+            <th>1st → 2nd</th>
+            <th>Recovery</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="doubleRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">
+      <div>
+        <div class="eyebrow">NEXT TARGETS</div>
+        <h2>Upcoming Double Attack improvements</h2>
+      </div>
+      <span class="tag">gear cap +480%</span>
+    </div>
+    <div id="targets" class="targets"></div>
+  </section>
+
+  <footer>
+    <p>
+      Model based on the supplied game-binary timing description and developer clarification:
+      10 simulation ticks/sec, FD6 increment, 1.5s AttackDuration, configured skin windup,
+      75% windup timer reset, and one idle tick after the timer.
+    </p>
+    <p>
+      Skin identities come from <code>SkinsLibrary.json</code>; WindupTime and AttackDuration come
+      from <code>WeaponLibrary.json</code>. Keep both JSON files beside this page; no HTML changes are required.
+    </p>
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
