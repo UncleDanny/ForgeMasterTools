@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# IDE & Editor
+.vscode/
+.vs/
+*.sln.cache
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.opendb
+*.db
+
+# Environment & Config
+.env
+.env.local
+.env.*.local
+
+# Build & Distribution
+dist/
+build/
+.cache/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
