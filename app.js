@@ -106,7 +106,10 @@
     }
 
     function friendlySetName(baseSetId) {
-        return String(baseSetId || "Unknown Set").replace(/Set$/, "");
+        return String(baseSetId || "Unknown Set")
+            .replace(/Set$/, "")
+            .replace(/([A-Z])/g, " $1")
+            .trim();
     }
 
     function parseItemKey(key) {
@@ -155,7 +158,7 @@
                 };
             })
             .filter(skin => skin.melee || skin.ranged)
-            .sort((a, b) => a.idx - b.idx);
+            .sort((a, b) => a.name.localeCompare(b.name));
     }
 
     function renderSkinOptions() {
