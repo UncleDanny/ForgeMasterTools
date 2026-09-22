@@ -71,7 +71,7 @@
 
         // Integer indices avoid accumulating floating-point error.
         for (let i = 0; i <= maxIndex; i++) {
-            const as = i / 1000;
+            const as = i * STEP_AS;
             const t = calculate(as, windup, attackDuration);
             const value = mode === "normal" ? t.normalTicks : t.doubleTicks;
 
@@ -160,7 +160,7 @@
 
     function renderSkinOptions() {
         $("skin").innerHTML = skinOptions.map((skin, i) =>
-            `<option value="${i}">${escapeHtml(skin.name)}${skin.baseSetId && skin.name !== skin.baseSetId ? ` (${escapeHtml(skin.baseSetId)})` : ""}</option>`
+            `<option value="${i}">${escapeHtml(skin.name)}</option>`
         ).join("");
     }
 
