@@ -32,12 +32,12 @@
     </label>
     <label>
       <span>Attack Speed</span>
-      <input id="attackSpeed" type="number" min="0" max="480" step="0.001" value="151.000">
-      <small>Bonus %, e.g. 151.000%</small>
+      <input id="attackSpeed" type="number" min="0" max="480" step="0.1" value="0.0">
+      <small>Bonus %, e.g. 151.0%</small>
     </label>
     <label>
       <span>Double Chance</span>
-      <input id="doubleChance" type="number" min="0" max="100" step="0.001" value="51.200">
+      <input id="doubleChance" type="number" min="0" max="100" step="0.1" value="0.0">
       <small>Used only for effective time / hit</small>
     </label>
   </section>
@@ -51,17 +51,17 @@
     <article class="card">
       <span>Normal cycle</span>
       <strong id="normalCycle">—</strong>
-      <small>first hit → next normal hit</small>
+      <small>Delay after normal attack</small>
     </article>
     <article class="card">
       <span>1st → 2nd hit</span>
       <strong id="hitGap">—</strong>
-      <small>Double Attack only</small>
+      <small>Delay between double attacks</small>
     </article>
     <article class="card accent">
       <span>Double cycle</span>
       <strong id="doubleCycle">—</strong>
-      <small>first hit → next cycle</small>
+      <small>Delay after double attack</small>
     </article>
   </section>
 
@@ -182,10 +182,6 @@
       Model based on the supplied game-binary timing description and developer clarification:
       10 simulation ticks/sec, FD6 increment, 1.5s AttackDuration, configured skin windup,
       75% windup timer reset, and one idle tick after the timer.
-    </p>
-    <p>
-      Skin identities come from <code>SkinsLibrary.json</code>; WindupTime and AttackDuration come
-      from <code>WeaponLibrary.json</code>. Keep both JSON files beside this page; no HTML changes are required.
     </p>
   </footer>
 </main>
