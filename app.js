@@ -15,6 +15,22 @@
     let weaponData = null;
     let skinOptions = [];
 
+    const CACHE_KEYS = {
+        SKIN: "attackSpeedCalc_skin",
+        WEAPON: "attackSpeedCalc_weapon",
+        ATTACK_SPEED: "attackSpeedCalc_attackSpeed",
+        DOUBLE_CHANCE: "attackSpeedCalc_doubleChance"
+    };
+
+    function loadFromCache(key, defaultValue) {
+        const cached = localStorage.getItem(key);
+        return cached !== null ? cached : defaultValue;
+    }
+
+    function saveToCache(key, value) {
+        localStorage.setItem(key, value);
+    }
+
     function ceilDiv(a, b) {
         return Math.floor((a + b - 1) / b);
     }
@@ -312,13 +328,22 @@
             }
 
             renderSkinOptions();
-            $("skin").value = "0";
-            $("attackSpeed").value = DEFAULT_ATTACK_SPEED.toFixed(1);
-            $("doubleChance").value = DEFAULT_DOUBLE_CHANCE.toFixed(1);
+
+            // Load cached values or use defaults
+            $("skin").value = loadFromCache(CACHE_KEYS.SKIN, "0");
+            $("weapon").value = loadFromCache(CACHE_KEYS.WEAPON, "melee");
+            $("attackSpeed").value = loadFromCache(CACHE_KEYS.ATTACK_SPEED, DEFAULT_ATTACK_SPEED.toFixed(1));
+            $("doubleChance").value = loadFromCache(CACHE_KEYS.DOUBLE_CHANCE, DEFAULT_DOUBLE_CHANCE.toFixed(1));
 
             ["skin", "weapon", "attackSpeed", "doubleChance"].forEach(id => {
-                $(id).addEventListener("input", render);
-                $(id).addEventListener("change", render);
+                $(id).addEventListener("input", (e) => {
+                    saveToCache(CACHE_KEYS[id.toUpperCase()] || `attackSpeedCalc_${id}`, $(id).value);
+                    render();
+                });
+                $(id).addEventListener("change", (e) => {
+                    saveToCache(CACHE_KEYS[id.toUpperCase()] || `attackSpeedCalc_${id}`, $(id).value);
+                    render();
+                });
             });
 
             render();
