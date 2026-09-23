@@ -66,7 +66,8 @@ p {
     color: var(--muted);
 }
 
-.badge, .tag {
+.badge,
+.tag {
     border: 1px solid var(--border);
     border-radius: 999px;
     color: var(--muted);
@@ -104,7 +105,8 @@ label small {
     margin-top: 5px;
 }
 
-select, input {
+select,
+input {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -114,7 +116,8 @@ select, input {
     font: inherit;
 }
 
-select:focus, input:focus {
+select:focus,
+input:focus {
     outline: none;
     border-color: var(--accent);
 }
@@ -138,7 +141,8 @@ select:focus, input:focus {
     background: linear-gradient(180deg, #291b2d, var(--panel));
 }
 
-.card span, .breakdown span {
+.card span,
+.breakdown span {
     display: block;
     color: var(--muted);
     font-size: 11px;
@@ -160,7 +164,7 @@ select:focus, input:focus {
     margin-top: 16px;
 }
 
-.explanation > p {
+.explanation>p {
     color: var(--muted);
     margin: 0 0 16px;
 }
@@ -175,7 +179,7 @@ select:focus, input:focus {
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 11px;
-    background: rgba(0,0,0,.14);
+    background: rgba(0, 0, 0, .14);
 }
 
 .formula-grid b {
@@ -210,12 +214,12 @@ code {
     border-top: 1px solid var(--border);
 }
 
-.breakdown > div {
+.breakdown>div {
     padding: 14px;
     border-right: 1px solid var(--border);
 }
 
-.breakdown > div:last-child {
+.breakdown>div:last-child {
     border-right: 0;
 }
 
@@ -234,7 +238,8 @@ table {
     border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
     padding: 10px 16px;
     border-top: 1px solid var(--border);
     text-align: left;
@@ -254,11 +259,11 @@ td {
 }
 
 tr.current {
-    background: rgba(83,220,139,.07);
+    background: rgba(83, 220, 139, .07);
 }
 
 tr.next {
-    background: rgba(194,139,221,.10);
+    background: rgba(194, 139, 221, .10);
 }
 
 .status {
@@ -323,7 +328,9 @@ footer {
 }
 
 @media (max-width: 850px) {
-    .controls, .summary {
+
+    .controls,
+    .summary {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -335,11 +342,11 @@ footer {
         grid-template-columns: repeat(3, 1fr);
     }
 
-    .breakdown > div:nth-child(3) {
+    .breakdown>div:nth-child(3) {
         border-right: 0;
     }
 
-    .breakdown > div:nth-child(n+4) {
+    .breakdown>div:nth-child(n+4) {
         border-top: 1px solid var(--border);
     }
 
@@ -359,7 +366,9 @@ footer {
         flex-direction: column;
     }
 
-    .controls, .summary, .formula-grid {
+    .controls,
+    .summary,
+    .formula-grid {
         grid-template-columns: 1fr;
     }
 
@@ -367,12 +376,13 @@ footer {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .breakdown > div {
+    .breakdown>div {
         border-right: 0;
         border-top: 1px solid var(--border);
     }
 
-    .breakdown > div:first-child, .breakdown > div:nth-child(2) {
+    .breakdown>div:first-child,
+    .breakdown>div:nth-child(2) {
         border-top: 0;
     }
 }

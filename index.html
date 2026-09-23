@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Attack speed breakpoint calculator for 10-tick combat">
-    <title>Skin Attack Speed Breakpoints</title>
+    <title>Attack Speed Breakpoints</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,23 +12,20 @@
         <header class="hero">
             <div>
                 <div class="eyebrow">10-TICK COMBAT ENGINE</div>
-                <h1>Skin Attack Speed Breakpoints</h1>
-                <p>Exact breakpoint calculations using the game's weapon skin timing data.</p>
+                <h1>Attack Speed Breakpoints</h1>
+                <p>Exact breakpoint calculations using the game's weapon and skin timing data.</p>
             </div>
             <div class="badge">FD6 / 0.1s ticks</div>
         </header>
 
         <section class="panel controls">
             <label>
-                <span>Skin set</span>
-                <select id="skin" aria-label="Skin set"></select>
+                <span>Age</span>
+                <select id="age" aria-label="Age"></select>
             </label>
             <label>
                 <span>Weapon</span>
-                <select id="weapon" aria-label="Weapon">
-                    <option value="melee">Melee</option>
-                    <option value="ranged">Ranged</option>
-                </select>
+                <select id="weapon" aria-label="Weapon"></select>
             </label>
             <label>
                 <span>Attack Speed</span>
@@ -86,7 +83,7 @@
         <section class="panel">
             <div class="section-title">
                 <div>
-                    <div class="eyebrow">SKIN-SPECIFIC</div>
+                    <div class="eyebrow">DOUBLE ATTACK</div>
                     <h2 id="doubleHeading">Double Attack</h2>
                 </div>
                 <span class="tag" id="windupTag">—</span>

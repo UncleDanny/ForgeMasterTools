@@ -5,26 +5,24 @@
     const DT_RAW = Math.floor(FP32 / 10);
     const MICRO = 1_000_000;
     const MAX_AS = 480;
-    const STEP_AS = 0.1;
-    const DEFAULT_ATTACK_SPEED = 0;
-    const DEFAULT_DOUBLE_CHANCE = 0;
+    const STEP_AS = 0.001;
 
     const $ = id => document.getElementById(id);
 
-    let skinsData = null;
-    let weaponData = null;
-    let skinOptions = [];
+    let data = null;
+    let ageOptions = [];
+    let itemOptions = [];
 
     const CACHE_KEYS = {
-        SKIN: "attackSpeedCalc_skin",
+        AGE: "attackSpeedCalc_age",
         WEAPON: "attackSpeedCalc_weapon",
         ATTACK_SPEED: "attackSpeedCalc_attackSpeed",
         DOUBLE_CHANCE: "attackSpeedCalc_doubleChance"
     };
 
-    function loadFromCache(key, defaultValue) {
-        const cached = localStorage.getItem(key);
-        return cached !== null ? cached : defaultValue;
+    function loadFromCache(key, fallback) {
+        const value = localStorage.getItem(key);
+        return value ?? fallback;
     }
 
     function saveToCache(key, value) {
@@ -35,33 +33,22 @@
         return Math.floor((a + b - 1) / b);
     }
 
-    // Exact supplied FD6 model. AS bonus +151% => speed multiplier 2.51.
     function getIncrement(asBonus) {
-        const speedMicro = Math.round((1 + asBonus / 100) * MICRO);
+        const speedMicro = Math.floor((1 + asBonus / 100) * MICRO);
         return Math.floor((DT_RAW * speedMicro) / FP32);
     }
 
     function calculate(asBonus, windup, attackDuration) {
         const inc = getIncrement(asBonus);
-        const durationUs = Math.round(attackDuration * MICRO);
-        const windupUs = Math.round(windup * MICRO);
+        const durationUs = Math.floor(attackDuration * MICRO);
+        const windupUs = Math.floor(windup * MICRO);
 
-        // Normal attack: timer reaches AttackDuration, then one idle tick.
         const normalTicks = ceilDiv(durationUs, inc) + 1;
-
-        // Double sequence: first hit at the skin's configured windup.
         const firstTicks = ceilDiv(windupUs, inc);
-
-        // Double proc resets the attack timer to 75% of windup.
-        const resetUs = Math.round(750_000 * windup);
-        const recoveryUs = durationUs - resetUs;
-        const recoveryTicks = ceilDiv(recoveryUs, inc);
-
-        // One idle tick occurs after the timer completes.
+        const resetUs = Math.floor(750_000 * windup);
+        const recoveryTicks = ceilDiv(durationUs - resetUs, inc);
         const doubleTicks = firstTicks + recoveryTicks + 1;
-
-        // Time from first hit to second hit.
-        const gapTicks = Math.max(1, ceilDiv(Math.round(250_000 * windup), inc));
+        const gapTicks = Math.max(1, ceilDiv(Math.floor(250_000 * windup), inc));
 
         return {
             inc,
@@ -85,7 +72,6 @@
         let previous = null;
         const maxIndex = Math.round(MAX_AS / STEP_AS);
 
-        // Integer indices avoid accumulating floating-point error.
         for (let i = 0; i <= maxIndex; i++) {
             const as = i * STEP_AS;
             const t = calculate(as, windup, attackDuration);
@@ -101,7 +87,10 @@
     }
 
     function effectiveTime(t, dc) {
-        return (t.normalCycle + dc * t.gap) / (1 + dc);
+        return (
+            t.normalCycle * (1 - dc) +
+            t.doubleCycle * dc
+        ) / (1 + dc);
     }
 
     function formatAs(x) {
@@ -121,77 +110,66 @@
             .replaceAll("'", "&#039;");
     }
 
-    function friendlySetName(baseSetId) {
-        return String(baseSetId || "Unknown Set")
-            .replace(/Set$/, "")
-            .replace(/([A-Z])/g, " $1")
-            .trim();
+    function ageLabel(age) {
+        return data?.ages?.[String(age)] ?? `Age ${age}`;
     }
 
-    function parseItemKey(key) {
-        // WeaponLibrary keys are serialized Unity dictionaries such as:
-        // "{'Age': -1000, 'Type': 'Weapon', 'Idx': 12}"
-        const age = Number(key.match(/'Age':\s*(-?\d+)/)?.[1]);
-        const type = key.match(/'Type':\s*'([^']+)'/)?.[1];
-        const idx = Number(key.match(/'Idx':\s*(-?\d+)/)?.[1]);
-        return { age, type, idx };
-    }
+    function rebuildItemOptions() {
+        const age = $("age").value;
+        itemOptions = age === "skins"
+            ? data.items.filter(item => item.kind === "skin")
+            : data.items.filter(item =>
+                item.kind === "weapon" && String(item.age) === String(age)
+            );
 
-    function buildWeaponTimingLookup(data) {
-        const lookup = new Map();
+        const groups = { melee: [], ranged: [] };
 
-        for (const [key, value] of Object.entries(data || {})) {
-            const itemId = value.ItemId || parseItemKey(key);
-            if (itemId.Type !== "Weapon" || !Number.isInteger(itemId.Idx)) continue;
-
-            let kind = null;
-            if (itemId.Age === -1000) kind = "melee";
-            if (itemId.Age === -1001) kind = "ranged";
-            if (!kind) continue;
-
-            if (!lookup.has(itemId.Idx)) lookup.set(itemId.Idx, {});
-            lookup.get(itemId.Idx)[kind] = {
-                windup: Number(value.WindupTime),
-                duration: Number(value.AttackDuration)
-            };
+        for (const item of itemOptions) {
+            groups[item.category]?.push(item);
         }
 
-        return lookup;
+        for (const group of Object.values(groups)) {
+            group.sort((a, b) =>
+                String(a.displayName ?? "").localeCompare(String(b.displayName ?? "")) ||
+                a.index - b.index
+            );
+        }
+
+        $("weapon").innerHTML = ["melee", "ranged"].map(category => {
+            const items = groups[category];
+            if (!items.length) return "";
+            return `<optgroup label="${category === "melee" ? "Melee" : "Ranged"}">` +
+                items.map((item, i) =>
+                    `<option value="${escapeHtml(itemKey(item))}">${escapeHtml(item.displayName ?? (item.kind === "skin" ? "Unnamed skin" : "Unnamed weapon"))}</option>`
+                ).join("") +
+                "</optgroup>";
+        }).join("");
+
+        const cached = loadFromCache(CACHE_KEYS.WEAPON, "");
+        if ([...$("weapon").options].some(o => o.value === cached)) {
+            $("weapon").value = cached;
+        }
     }
 
-    function buildSkinOptions(skins, timingLookup) {
-        return Object.values(skins || {})
-            .filter(skin => skin?.SkinId?.Type === "Weapon")
-            .map(skin => {
-                const idx = skin.SkinId.Idx;
-                const timing = timingLookup.get(idx);
-                return {
-                    idx,
-                    name: friendlySetName(skin.BaseSetId),
-                    baseSetId: skin.BaseSetId || "",
-                    melee: timing?.melee || null,
-                    ranged: timing?.ranged || null
-                };
-            })
-            .filter(skin => skin.melee || skin.ranged)
-            .sort((a, b) => a.name.localeCompare(b.name));
+    function itemKey(item) {
+        return `${item.kind}:${item.age ?? "skin"}:${item.category}:${item.index}:${item.baseSetId ?? ""}`;
     }
 
-    function renderSkinOptions() {
-        $("skin").innerHTML = skinOptions.map((skin, i) =>
-            `<option value="${i}">${escapeHtml(skin.name)}</option>`
-        ).join("");
+    function getSelectedItem() {
+        const key = $("weapon").value;
+        return itemOptions.find(item => itemKey(item) === key) ?? itemOptions[0] ?? null;
     }
 
-    function getSelectedSkin() {
-        const index = Number.parseInt($("skin").value, 10);
-        return Number.isInteger(index) && skinOptions[index] ? skinOptions[index] : skinOptions[0] || null;
-    }
+    function renderAgeOptions() {
+        const ages = [...new Set(data.items
+            .filter(item => item.kind === "weapon" && item.age !== null && item.age !== 10000)
+            .map(item => item.age))]
+            .sort((a, b) => a - b);
 
-    function getSelectedTiming() {
-        const skin = getSelectedSkin();
-        if (!skin) return null;
-        return $("weapon").value === "melee" ? skin.melee : skin.ranged;
+        ageOptions = ages.map(String);
+        $("age").innerHTML = ages.map(age =>
+            `<option value="${age}">${escapeHtml(ageLabel(age))}</option>`
+        ).join("") + `<option value="skins">Weapon Skins</option>`;
     }
 
     function statusForBreakpoint(rows, index, currentAs) {
@@ -214,11 +192,11 @@
         $("normalRows").innerHTML = rows.map((r, i) => {
             const status = statusForBreakpoint(rows, i, currentAs);
             return `<tr class="${status.className}">
-        <td>${formatAs(r.as)}</td>
-        <td>${formatSec(r.normalCycle)}</td>
-        <td>${r.normalTicks}</td>
-        <td>${status.html}</td>
-      </tr>`;
+                <td>${formatAs(r.as)}</td>
+                <td>${formatSec(r.normalCycle)}</td>
+                <td>${r.normalTicks}</td>
+                <td>${status.html}</td>
+            </tr>`;
         }).join("");
     }
 
@@ -227,12 +205,12 @@
         $("doubleRows").innerHTML = rows.map((r, i) => {
             const status = statusForBreakpoint(rows, i, currentAs);
             return `<tr class="${status.className}">
-        <td>${formatAs(r.as)}</td>
-        <td>${formatSec(r.doubleCycle)}</td>
-        <td>${formatSec(r.gap)}</td>
-        <td>${formatSec(r.afterSecond)}</td>
-        <td>${status.html}</td>
-      </tr>`;
+                <td>${formatAs(r.as)}</td>
+                <td>${formatSec(r.doubleCycle)}</td>
+                <td>${formatSec(r.gap)}</td>
+                <td>${formatSec(r.afterSecond)}</td>
+                <td>${status.html}</td>
+            </tr>`;
         }).join("");
         return rows;
     }
@@ -242,50 +220,44 @@
         const nowEffective = effectiveTime(now, dc);
         const upcoming = rows.filter(r => r.as > currentAs).slice(0, 3);
 
-        if (!upcoming.length) {
-            $("targets").innerHTML = '<div class="target"><strong>+480.000%</strong><span>No further Double Attack breakpoint within the configured gear cap.</span></div>';
-            return;
-        }
-
-        $("targets").innerHTML = upcoming.map(r => {
-            const t = calculate(r.as, windup, attackDuration);
-            const effective = effectiveTime(t, dc);
-            const gain = nowEffective > 0 ? (1 - effective / nowEffective) * 100 : 0;
-
-            return `<div class="target">
-        <strong>${formatAs(r.as)}</strong>
-        <span>${formatSec(t.doubleCycle)} double cycle · ${formatSec(effective, 3)}/hit · ${gain.toFixed(1)}% faster effective timing</span>
-      </div>`;
-        }).join("");
+        $("targets").innerHTML = upcoming.length
+            ? upcoming.map(r => {
+                const t = calculate(r.as, windup, attackDuration);
+                const effective = effectiveTime(t, dc);
+                const gain = nowEffective > 0 ? (1 - effective / nowEffective) * 100 : 0;
+                return `<div class="target">
+                    <strong>${formatAs(r.as)}</strong>
+                    <span>${formatSec(t.doubleCycle)} double cycle · ${formatSec(effective, 3)}/hit · ${gain.toFixed(1)}% faster effective timing</span>
+                </div>`;
+            }).join("")
+            : '<div class="target"><strong>+480.0%</strong><span>No further Double Attack breakpoint within the configured gear cap.</span></div>';
     }
 
-    function renderEmptyState(message = "No weapon skins with timing data were found.") {
+    function renderEmptyState(message) {
         document.body.innerHTML = `
-      <main class="page">
-        <section class="panel empty-state">
-          <h1>No skin timing data</h1>
-          <p>${escapeHtml(message)}</p>
-        </section>
-      </main>`;
+            <main class="page">
+                <section class="panel empty-state">
+                    <h1>No weapon timing data</h1>
+                    <p>${escapeHtml(message)}</p>
+                </section>
+            </main>`;
     }
 
     function render() {
-        const skin = getSelectedSkin();
-        const timing = getSelectedTiming();
+        const item = getSelectedItem();
 
-        if (!skin || !timing || !Number.isFinite(timing.windup) || !Number.isFinite(timing.duration)) {
-            renderEmptyState("The selected skin/weapon has no WindupTime or AttackDuration in WeaponLibrary.json.");
+        if (!item || !Number.isFinite(item.windup) || !Number.isFinite(item.attackDuration)) {
+            renderEmptyState("The selected item has no WindupTime or AttackDuration.");
             return;
         }
 
         const as = Math.max(0, Math.min(MAX_AS, Number($("attackSpeed").value) || 0));
         const dc = Math.max(0, Math.min(100, Number($("doubleChance").value) || 0)) / 100;
-        const t = calculate(as, timing.windup, timing.duration);
-        const weaponName = $("weapon").value === "melee" ? "Melee" : "Ranged";
+        const t = calculate(as, item.windup, item.attackDuration);
+        const name = item.displayName ?? (item.kind === "skin" ? "Unnamed skin" : "Unnamed weapon");
 
-        $("windup").textContent = `${timing.windup.toFixed(3)}s`;
-        $("skinWeapon").textContent = `${skin.name} · ${weaponName} · ${timing.duration.toFixed(3)}s duration`;
-
+        $("windup").textContent = `${item.windup.toFixed(3)}s`;
+        $("skinWeapon").textContent = `${name} · ${item.category} · ${item.attackDuration.toFixed(3)}s duration`;
         $("normalCycle").textContent = formatSec(t.normalCycle);
         $("hitGap").textContent = formatSec(t.gap);
         $("doubleCycle").textContent = formatSec(t.doubleCycle);
@@ -297,51 +269,50 @@
         $("idleTicks").textContent = t.idleTicks;
         $("effectiveTime").textContent = `${effectiveTime(t, dc).toFixed(3)}s`;
 
-        $("doubleHeading").textContent = `${skin.name} · ${weaponName} Double Attack`;
-        $("windupTag").textContent = `${timing.windup.toFixed(3)}s windup · ${timing.duration.toFixed(3)}s duration`;
+        $("doubleHeading").textContent = `${name} · ${item.category} Double Attack`;
+        $("windupTag").textContent = `${item.windup.toFixed(3)}s windup · ${item.attackDuration.toFixed(3)}s duration`;
 
-        renderNormalTable(as, timing.duration);
-        const rows = renderDoubleTable(as, timing.windup, timing.duration);
-        renderTargets(rows, as, timing.windup, timing.duration, dc);
+        renderNormalTable(as, item.attackDuration);
+        const rows = renderDoubleTable(as, item.windup, item.attackDuration);
+        renderTargets(rows, as, item.windup, item.attackDuration, dc);
     }
 
     async function init() {
         try {
-            const [skinsResponse, weaponResponse] = await Promise.all([
-                fetch("SkinsLibrary.json"),
-                fetch("WeaponLibrary.json")
-            ]);
+            const response = await fetch("WeaponData.json");
+            if (!response.ok) throw new Error(`WeaponData.json returned ${response.status}.`);
 
-            if (!skinsResponse.ok || !weaponResponse.ok) {
-                throw new Error(`Data load failed (${skinsResponse.status}/${weaponResponse.status}).`);
+            data = await response.json();
+            if (!Array.isArray(data.items) || !data.items.length) {
+                throw new Error("WeaponData.json contains no items.");
             }
 
-            skinsData = await skinsResponse.json();
-            weaponData = await weaponResponse.json();
+            renderAgeOptions();
 
-            const timingLookup = buildWeaponTimingLookup(weaponData);
-            skinOptions = buildSkinOptions(skinsData, timingLookup);
+            const cachedAge = loadFromCache(CACHE_KEYS.AGE, String(ageOptions[0]));
+            $("age").value = ["skins", ...ageOptions].includes(cachedAge)
+                ? cachedAge
+                : String(ageOptions[0]);
 
-            if (!skinOptions.length) {
-                renderEmptyState();
-                return;
-            }
+            rebuildItemOptions();
 
-            renderSkinOptions();
+            $("attackSpeed").value = loadFromCache(CACHE_KEYS.ATTACK_SPEED, "0.0");
+            $("doubleChance").value = loadFromCache(CACHE_KEYS.DOUBLE_CHANCE, "0.0");
 
-            // Load cached values or use defaults
-            $("skin").value = loadFromCache(CACHE_KEYS.SKIN, "0");
-            $("weapon").value = loadFromCache(CACHE_KEYS.WEAPON, "melee");
-            $("attackSpeed").value = loadFromCache(CACHE_KEYS.ATTACK_SPEED, DEFAULT_ATTACK_SPEED.toFixed(1));
-            $("doubleChance").value = loadFromCache(CACHE_KEYS.DOUBLE_CHANCE, DEFAULT_DOUBLE_CHANCE.toFixed(1));
+            $("age").addEventListener("change", () => {
+                saveToCache(CACHE_KEYS.AGE, $("age").value);
+                rebuildItemOptions();
+                render();
+            });
 
-            ["skin", "weapon", "attackSpeed", "doubleChance"].forEach(id => {
-                $(id).addEventListener("input", (e) => {
-                    saveToCache(CACHE_KEYS[id.toUpperCase()] || `attackSpeedCalc_${id}`, $(id).value);
-                    render();
-                });
-                $(id).addEventListener("change", (e) => {
-                    saveToCache(CACHE_KEYS[id.toUpperCase()] || `attackSpeedCalc_${id}`, $(id).value);
+            $("weapon").addEventListener("change", () => {
+                saveToCache(CACHE_KEYS.WEAPON, $("weapon").value);
+                render();
+            });
+
+            ["attackSpeed", "doubleChance"].forEach(id => {
+                $(id).addEventListener("input", () => {
+                    saveToCache(CACHE_KEYS[id.toUpperCase()], $(id).value);
                     render();
                 });
             });
@@ -349,7 +320,7 @@
             render();
         } catch (error) {
             console.error(error);
-            renderEmptyState("Could not load SkinsLibrary.json and WeaponLibrary.json. Make sure both files are published beside index.html.");
+            renderEmptyState(`Could not load WeaponData.json: ${error.message}`);
         }
     }
 
