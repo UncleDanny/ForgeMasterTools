@@ -2,20 +2,6 @@
 
 Calculator for the game's 10-tick combat timing model.
 
-## Data sources
-
-The page uses the supplied game data directly:
-
-- `SkinsLibrary.json` — identifies weapon skins and their `BaseSetId` / `SkinId.Idx`.
-- `WeaponLibrary.json` — supplies the actual `WindupTime` and `AttackDuration` for each weapon index.
-
-The timing lookup follows the same mapping used by Forge Master:
-
-- `Age: -1000` → melee
-- `Age: -1001` → ranged
-- `Type: Weapon`
-- `Idx` joins `SkinsLibrary.json` to `WeaponLibrary.json`
-
 ## Timing model
 
 The calculator uses the supplied FD6 model:
