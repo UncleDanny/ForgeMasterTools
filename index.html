@@ -37,6 +37,13 @@
                 <input id="doubleChance" type="number" min="0" max="100" step="0.1" value="0.0">
                 <small>Used only for effective time / hit</small>
             </label>
+            <label>
+                <span>Breakpoint Display</span>
+                <select id="breakpointPrecision" aria-label="Breakpoint display precision">
+                    <option value="3">Accurate (3 decimals)</option>
+                    <option value="1">In-game style (1 decimal)</option>
+                </select>
+            </label>
         </section>
 
         <section class="summary">
@@ -48,7 +55,7 @@
             <article class="card">
                 <span>Normal cycle</span>
                 <strong id="normalCycle">—</strong>
-                <small>Delay after normal attack</small>
+                <small>Hit → next normal hit</small>
             </article>
             <article class="card">
                 <span>1st → 2nd hit</span>
@@ -56,9 +63,9 @@
                 <small>Delay between double attacks</small>
             </article>
             <article class="card accent">
-                <span>Double cycle</span>
+                <span>Full Double sequence</span>
                 <strong id="doubleCycle">—</strong>
-                <small>Delay after double attack</small>
+                <small>1st hit → next normal hit</small>
             </article>
         </section>
 
@@ -68,7 +75,6 @@
                     <div class="eyebrow">NORMAL ATTACK</div>
                     <h2>Normal attack breakpoints</h2>
                 </div>
-                <span class="tag">weapon-independent</span>
             </div>
             <div class="table-scroll">
                 <table>
@@ -93,9 +99,9 @@
                     <thead>
                         <tr>
                             <th>Minimum AS</th>
-                            <th>Full double cycle</th>
+                            <th>Full Double sequence</th>
                             <th>1st → 2nd</th>
-                            <th>Recovery</th>
+                            <th>2nd → next normal</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -118,50 +124,7 @@
         <details class="technical-details">
             <summary>Show calculation details</summary>
 
-
-            <section class="panel explanation">
-                <div class="eyebrow">CURRENT MODEL</div>
-                <h2>How the Double Attack is timed</h2>
-                <p>
-                    The first hit uses the selected skin's configured windup. A Double Attack then resets the
-                    attack timer to 75% of that windup. The timer climbs from that reset to the 1.5s
-                    AttackDuration, followed by one idle tick.
-                </p>
-
-                <div class="formula-grid">
-                    <div>
-                        <b>Speed multiplier</b>
-                        <code>s = 1 + AS / 100</code>
-                    </div>
-                    <div>
-                        <b>FD6 increment</b>
-                        <code>inc = floor(dtRaw × round(s × 1e6) / 2³²)</code>
-                    </div>
-                    <div>
-                        <b>First-hit ticks</b>
-                        <code>ceil(windup / inc)</code>
-                    </div>
-                    <div>
-                        <b>Recovery ticks</b>
-                        <code>ceil((1.5 − 0.75 × windup) / inc)</code>
-                    </div>
-                    <div>
-                        <b>Double cycle</b>
-                        <code>firstHit + recovery + 1 idle tick</code>
-                    </div>
-                    <div>
-                        <b>Effective time / hit</b>
-                        <code>(normal + DC × gap) / (1 + DC)</code>
-                    </div>
-                </div>
-
-                <p class="note">
-                    The website uses the game's fixed-point increment for breakpoint calculations rather than
-                    the simplified 0.1 × speed approximation. AS values are displayed to three decimals.
-                </p>
-            </section>
-
-            <section class="panel">
+            <section class="panel timing-breakdown">
                 <div class="section-title">
                     <div>
                         <div class="eyebrow">CURRENT SPEED</div>
@@ -172,18 +135,217 @@
                     <div><span>Speed multiplier</span><b id="speedMultiplier">—</b></div>
                     <div><span>Timer increment</span><b id="increment">—</b></div>
                     <div><span>First-hit ticks</span><b id="firstTicks">—</b></div>
-                    <div><span>Recovery ticks</span><b id="recoveryTicks">—</b></div>
-                    <div><span>Idle ticks</span><b id="idleTicks">—</b></div>
+                    <div><span>Normal cooldown ticks</span><b id="recoveryTicks">—</b></div>
+                    <div><span>Post-cooldown transition</span><b id="idleTicks">—</b></div>
                     <div><span>Effective time / hit</span><b id="effectiveTime">—</b></div>
                 </div>
             </section>
+
+            <section class="panel explanation">
+                <div class="eyebrow">SOURCE-ACCURATE MODEL</div>
+
+                <h2>How attack timing works</h2>
+
+                <p>
+                    The combat system advances in discrete <strong>0.1 second simulation ticks</strong>.
+                    Each tick adds <code>dt × AttackSpeedMulti</code> to the unit's
+                    <code>AttackTimer</code>. Because the timer and durations use the game's
+                    fixed-point FD6 representation, breakpoint calculations are performed using
+                    the same integer arithmetic rather than a simplified floating-point timer.
+                </p>
+                <h3>Normal attack</h3>
+
+                <p>
+                    A unit starts in <code>Idle</code>. It transitions to
+                    <code>WindingUp</code>, then accumulates timer ticks until
+                    <code>AttackTimer ≥ WindUpDuration</code> and the attack executes.
+                    After the hit, the unit enters <code>OnCooldown</code>.
+                </p>
+
+                <p>
+                    During <code>OnCooldown</code>, the same timer continues increasing until
+                    <code>AttackTimer ≥ AttackDuration</code>. The game then resets the timer
+                    to zero and changes the state to <code>Idle</code>.
+                </p>
+
+                <p>
+                    The following simulation tick changes <code>Idle → WindingUp</code>.
+                    The new attack then starts accumulating its normal windup from zero.
+                </p>
+
+                <div class="formula-grid">
+                    <div>
+                        <b>Speed multiplier</b>
+                        <code>s = 1 + AS / 100</code>
+                    </div>
+
+                    <div>
+                        <b>Timer increment</b>
+                        <code>
+                            inc = floor(dtRaw × AttackSpeedMultiRaw / 2³²)
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>First-hit ticks</b>
+                        <code>
+                            N = ceil(WindUpDuration / inc)
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Timer at first hit</b>
+                        <code>
+                            T₁ = N × inc
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Normal cooldown ticks</b>
+                        <code>
+                            C = max(1, ceil((AttackDuration − T₁) / inc))
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Normal cycle</b>
+                        <code>
+                            N + C + 1
+                        </code>
+                    </div>
+                </div>
+
+                <p class="note">
+                    The <code>+1</code> is the simulation tick that changes
+                    <code>Idle → WindingUp</code>. The cooldown is clamped to at least
+                    one tick because, after an attack, the unit enters <code>OnCooldown</code>,
+                    and the next simulation update processes that state before it can return to
+                    <code>Idle</code>.
+                </p>
+
+                <p class="note">
+                    In the usual case where <code>T₁ &lt; AttackDuration</code>, the expression
+                    simplifies algebraically to
+                    <code>ceil(AttackDuration / inc) + 1</code>.
+                    That simplification is <strong>not universal</strong>: at sufficiently
+                    high Attack Speed with a sufficiently long windup, the first hit can
+                    occur at or beyond <code>AttackDuration</code>, activating the
+                    one-tick cooldown clamp.
+                </p>
+
+                <h3>Double Attack</h3>
+
+                <p>
+                    When Double Attack procs, the first attack has already executed.
+                    Instead of returning to <code>Idle</code>, the game immediately changes
+                    the state back to <code>WindingUp</code>.
+                </p>
+
+                <p>
+                    The attack timer is set to <strong>75% of WindUpDuration</strong>.
+                    This comes from the game's <code>DoubleAttackSpeedUp = 4</code> constant:
+                </p>
+
+                <div class="formula-grid">
+                    <div>
+                        <b>Double Attack reset</b>
+                        <code>
+                            reset = W × (1 − 1 / 4)
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Reset value</b>
+                        <code>
+                            reset = 0.75 × W
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>1st → 2nd hit</b>
+                        <code>
+                            G = max(1, ceil((W − reset) / inc))
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Timer at second hit</b>
+                        <code>
+                            T₂ = reset + G × inc
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Second-hit cooldown</b>
+                        <code>
+                            C₂ = max(1, ceil((D − T₂) / inc))
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>2nd → next normal hit</b>
+                        <code>
+                            C₂ + 1 + N
+                        </code>
+                    </div>
+
+                    <div>
+                        <b>Full Double sequence</b>
+                        <code>
+                            G + C₂ + 1 + N
+                        </code>
+                    </div>
+                </div>
+
+                <p class="note">
+                    Unlike the normal cycle, the Double Attack reset occurs between two
+                    actual attacks. Its reduced timer therefore does not cancel out,
+                    making Double Attack timing dependent on the selected weapon/skin's
+                    <code>WindUpDuration</code>.
+                </p>
+
+                <h3>Effective time per hit</h3>
+
+                <p>
+                    Double Chance produces two hits when it procs. If
+                    <code>p</code> is the Double Chance probability, then the expected
+                    time per damage event is:
+                </p>
+
+                <div class="formula-grid">
+                    <div>
+                        <b>Expected time / hit</b>
+                        <code>
+                            ((1 − p) × normal + p × double) / (1 + p)
+                        </code>
+                    </div>
+                </div>
+
+                <p class="note">
+                    <code>normal</code> is the normal hit-to-next-hit cycle, while
+                    <code>double</code> is the complete first-hit-to-next-normal-hit
+                    sequence when a Double Attack occurs.
+                </p>
+
+                <p class="note">
+                    The calculator reproduces the game's fixed-point timer arithmetic:
+                    <code>dt = 0.1s</code> is represented by the game's F64 format,
+                    while attack timers and durations use FD6 precision of
+                    <code>1,000,000</code>. Integer fixed-point arithmetic is used for
+                    breakpoint calculations rather than a simplified floating-point timer.
+                </p>
+            </section>
+
         </details>
 
         <footer>
             <p>
-                Model based on the supplied game-binary timing description and developer clarification:
-                10 simulation ticks/sec, FD6 increment, 1.5s AttackDuration, configured skin windup,
-                75% windup timer reset, and one idle tick after the timer.
+                Model based on the supplied game-binary timing:
+                10 simulation ticks/sec, F64/FD6 fixed-point timer arithmetic,
+                1.5s AttackDuration, a weapon/skin-specific WindUpDuration for
+                the attack state, a 75% windup timer reset for Double Attack,
+                and one Idle transition tick between completed cooldowns and the
+                next WindingUp state.
             </p>
         </footer>
     </main>

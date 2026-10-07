@@ -86,7 +86,7 @@ p {
 
 .controls {
     display: grid;
-    grid-template-columns: 1.3fr 1fr 1fr 1fr;
+    grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr;
     gap: 12px;
     padding: 15px;
 }
@@ -159,9 +159,12 @@ input:focus {
     color: #756b66;
 }
 
+.timing-breakdown {
+    margin-top: 16px;
+}
+
 .explanation {
     padding: 18px;
-    margin-top: 16px;
 }
 
 .explanation>p {

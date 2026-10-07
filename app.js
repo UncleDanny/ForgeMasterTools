@@ -17,7 +17,8 @@
         AGE: "attackSpeedCalc_age",
         WEAPON: "attackSpeedCalc_weapon",
         ATTACK_SPEED: "attackSpeedCalc_attackSpeed",
-        DOUBLE_CHANCE: "attackSpeedCalc_doubleChance"
+        DOUBLE_CHANCE: "attackSpeedCalc_doubleChance",
+        BREAKPOINT_PRECISION: "attackSpeedCalc_breakpointPrecision"
     };
 
     function loadFromCache(key, fallback) {
@@ -33,37 +34,70 @@
         return Math.floor((a + b - 1) / b);
     }
 
+    function toFd6Raw(value) {
+        return Math.floor(value * MICRO);
+    }
+
     function getIncrement(asBonus) {
-        const speedMicro = Math.floor((1 + asBonus / 100) * MICRO);
+        const speedMicro = toFd6Raw((1 + asBonus / 100));
         return Math.floor((DT_RAW * speedMicro) / FP32);
     }
 
     function calculate(asBonus, windup, attackDuration) {
         const inc = getIncrement(asBonus);
-        const durationUs = Math.floor(attackDuration * MICRO);
-        const windupUs = Math.floor(windup * MICRO);
 
-        const normalTicks = ceilDiv(durationUs, inc) + 1;
-        const firstTicks = ceilDiv(windupUs, inc);
-        const resetUs = Math.floor(750_000 * windup);
-        const recoveryTicks = ceilDiv(durationUs - resetUs, inc);
-        const doubleTicks = firstTicks + recoveryTicks + 1;
-        const gapTicks = Math.max(1, ceilDiv(Math.floor(250_000 * windup), inc));
+        const durationRaw = toFd6Raw(attackDuration);
+        const windupRaw = toFd6Raw(windup);
+
+        const firstTicks = Math.max(1, ceilDiv(windupRaw, inc));
+        const timerAtFirstHit = firstTicks * inc;
+        const normalCooldownTicks = Math.max(1, ceilDiv(durationRaw - timerAtFirstHit, inc));
+
+        const normalTicks = firstTicks + normalCooldownTicks + 1;
+
+        const resetRaw = Math.floor(windupRaw * 3 / 4);
+        const gapTicks = Math.max(1, ceilDiv(windupRaw - resetRaw, inc));
+        const timerAtSecondHit = resetRaw + gapTicks * inc;
+
+        const postDoubleCooldownTicks = Math.max(1, ceilDiv(durationRaw - timerAtSecondHit, inc));
+        const postDoubleTicks = postDoubleCooldownTicks + 1 + firstTicks;
+
+        const doubleTicks = gapTicks + postDoubleTicks;
 
         return {
             inc,
+
             speedMultiplier: 1 + asBonus / 100,
+
+            // Normal hit -> next normal hit.
             normalTicks,
             normalCycle: normalTicks / 10,
+
+            // Useful diagnostic values.
             firstTicks,
-            recoveryTicks,
-            idleTicks: 1,
-            doubleTicks,
-            doubleCycle: doubleTicks / 10,
+            timerAtFirstHit,
+            normalCooldownTicks,
+            normalCooldown: normalCooldownTicks / 10,
+
+            // Double Attack reset.
+            resetRaw,
+            reset: resetRaw / MICRO,
+
+            // First hit -> second hit.
             gapTicks,
             gap: gapTicks / 10,
-            afterSecondTicks: doubleTicks - gapTicks,
-            afterSecond: (doubleTicks - gapTicks) / 10
+
+            timerAtSecondHit,
+
+            // Second hit -> next normal hit.
+            postDoubleCooldownTicks,
+            postDoubleTicks,
+            afterSecondTicks: postDoubleTicks,
+            afterSecond: postDoubleTicks / 10,
+
+            // First hit -> next normal hit after a Double.
+            doubleTicks,
+            doubleCycle: doubleTicks / 10
         };
     }
 
@@ -94,7 +128,7 @@
     }
 
     function formatAs(x) {
-        return `${x.toFixed(1)}%`;
+        return `${x.toFixed(Number($("breakpointPrecision").value))}%`;
     }
 
     function formatSec(x, digits = 2) {
@@ -187,16 +221,16 @@
         return { className: "", html: "" };
     }
 
-    function renderNormalTable(currentAs, attackDuration) {
-        const rows = buildBreakpoints(0, attackDuration, "normal");
+    function renderNormalTable(currentAs, windup, attackDuration) {
+        const rows = buildBreakpoints(windup, attackDuration, "normal");
         $("normalRows").innerHTML = rows.map((r, i) => {
             const status = statusForBreakpoint(rows, i, currentAs);
             return `<tr class="${status.className}">
-                <td>${formatAs(r.as)}</td>
-                <td>${formatSec(r.normalCycle)}</td>
-                <td>${r.normalTicks}</td>
-                <td>${status.html}</td>
-            </tr>`;
+            <td>${formatAs(r.as)}</td>
+            <td>${formatSec(r.normalCycle)}</td>
+            <td>${r.normalTicks}</td>
+            <td>${status.html}</td>
+        </tr>`;
         }).join("");
     }
 
@@ -265,14 +299,14 @@
         $("speedMultiplier").textContent = `${t.speedMultiplier.toFixed(6)}×`;
         $("increment").textContent = `${(t.inc / MICRO).toFixed(6)}s/tick`;
         $("firstTicks").textContent = t.firstTicks;
-        $("recoveryTicks").textContent = t.recoveryTicks;
-        $("idleTicks").textContent = t.idleTicks;
+        $("recoveryTicks").textContent = t.normalCooldownTicks;
+        $("idleTicks").textContent = 1;
         $("effectiveTime").textContent = `${effectiveTime(t, dc).toFixed(3)}s`;
 
         $("doubleHeading").textContent = `${name} · ${item.category} Double Attack`;
         $("windupTag").textContent = `${item.windup.toFixed(3)}s windup · ${item.attackDuration.toFixed(3)}s duration`;
 
-        renderNormalTable(as, item.attackDuration);
+        renderNormalTable(as, item.windup, item.attackDuration);
         const rows = renderDoubleTable(as, item.windup, item.attackDuration);
         renderTargets(rows, as, item.windup, item.attackDuration, dc);
     }
@@ -298,6 +332,8 @@
 
             $("attackSpeed").value = loadFromCache(CACHE_KEYS.ATTACK_SPEED, "0.0");
             $("doubleChance").value = loadFromCache(CACHE_KEYS.DOUBLE_CHANCE, "0.0");
+            const cachedPrecision = loadFromCache(CACHE_KEYS.BREAKPOINT_PRECISION, "3");
+            $("breakpointPrecision").value = ["1", "3"].includes(cachedPrecision) ? cachedPrecision : "3";
 
             $("age").addEventListener("change", () => {
                 saveToCache(CACHE_KEYS.AGE, $("age").value);
@@ -307,6 +343,11 @@
 
             $("weapon").addEventListener("change", () => {
                 saveToCache(CACHE_KEYS.WEAPON, $("weapon").value);
+                render();
+            });
+
+            $("breakpointPrecision").addEventListener("change", () => {
+                saveToCache(CACHE_KEYS.BREAKPOINT_PRECISION, $("breakpointPrecision").value);
                 render();
             });
 
