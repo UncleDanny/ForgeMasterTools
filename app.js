@@ -156,10 +156,33 @@
                 item.kind === "weapon" && String(item.age) === String(age)
             );
 
-        const groups = { melee: [], ranged: [] };
+        const sameTimingSkinIds = new Set();
+        if (age === "skins") {
+            const skinsById = new Map();
+            for (const item of itemOptions) {
+                const pair = skinsById.get(item.skinId) ?? {};
+                pair[item.category] = item;
+                skinsById.set(item.skinId, pair);
+            }
+
+            for (const [skinId, pair] of skinsById) {
+                if (pair.melee && pair.ranged &&
+                    toFd6Raw(pair.melee.windup) === toFd6Raw(pair.ranged.windup) &&
+                    toFd6Raw(pair.melee.attackDuration) === toFd6Raw(pair.ranged.attackDuration)) {
+                    sameTimingSkinIds.add(skinId);
+                }
+            }
+        }
+
+        itemOptions = itemOptions
+            .filter(item => !sameTimingSkinIds.has(item.skinId) || item.category === "melee")
+            .map(item => sameTimingSkinIds.has(item.skinId) ? { ...item, displayCategory: "melee & ranged" } : item);
+
+        const groups = { sameTiming: [], melee: [], ranged: [] };
 
         for (const item of itemOptions) {
-            groups[item.category]?.push(item);
+            const group = age === "skins" && sameTimingSkinIds.has(item.skinId) ? "sameTiming" : item.category;
+            groups[group]?.push(item);
         }
 
         for (const group of Object.values(groups)) {
@@ -169,13 +192,21 @@
             );
         }
 
-        $("weapon").innerHTML = ["melee", "ranged"].map(category => {
+        const groupLabels = {
+            sameTiming: "Melee & Ranged (same timing)",
+            melee: "Melee",
+            ranged: "Ranged"
+        };
+        const groupOrder = age === "skins" ? ["sameTiming", "melee", "ranged"] : ["melee", "ranged"];
+
+        $("weapon").innerHTML = groupOrder.map(category => {
             const items = groups[category];
             if (!items.length) return "";
-            return `<optgroup label="${category === "melee" ? "Melee" : "Ranged"}">` +
-                items.map((item, i) =>
-                    `<option value="${escapeHtml(itemKey(item))}">${escapeHtml(item.displayName ?? (item.kind === "skin" ? "Unnamed skin" : "Unnamed weapon"))}</option>`
-                ).join("") +
+            return `<optgroup label="${groupLabels[category]}">` +
+                items.map((item, i) => {
+                    const label = `${escapeHtml(item.displayName ?? (item.kind === "skin" ? "Unnamed skin" : "Unnamed weapon"))}${Number.isFinite(item.windup) ? ` (${item.windup.toFixed(3)}s)` : ""}`;
+                    return `<option value="${escapeHtml(itemKey(item))}">${label}</option>`;
+                }).join("") +
                 "</optgroup>";
         }).join("");
 
@@ -291,7 +322,8 @@
         const name = item.displayName ?? (item.kind === "skin" ? "Unnamed skin" : "Unnamed weapon");
 
         $("windup").textContent = `${item.windup.toFixed(3)}s`;
-        $("skinWeapon").textContent = `${name} · ${item.category} · ${item.attackDuration.toFixed(3)}s duration`;
+        const category = item.displayCategory ?? item.category;
+        $("skinWeapon").textContent = `${name} · ${category} · ${item.attackDuration.toFixed(3)}s duration`;
         $("normalCycle").textContent = formatSec(t.normalCycle);
         $("hitGap").textContent = formatSec(t.gap);
         $("doubleCycle").textContent = formatSec(t.doubleCycle);
@@ -303,7 +335,7 @@
         $("idleTicks").textContent = 1;
         $("effectiveTime").textContent = `${effectiveTime(t, dc).toFixed(3)}s`;
 
-        $("doubleHeading").textContent = `${name} · ${item.category} Double Attack`;
+        $("doubleHeading").textContent = `${name} · ${category} Double Attack`;
         $("windupTag").textContent = `${item.windup.toFixed(3)}s windup · ${item.attackDuration.toFixed(3)}s duration`;
 
         renderNormalTable(as, item.windup, item.attackDuration);
